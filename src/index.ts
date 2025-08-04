@@ -19,7 +19,6 @@ async function fetchGitHubRepos(username: string, env: Env): Promise<GitHubRepo[
 	const perPage = 100; // GitHub API returns up to 100 per page
 
 	const url = `https://api.github.com/users/${username}/repos?page=1&per_page=${perPage}&sort=updated`;
-	console.log(url);
 
 	const response = await fetch(
 		url,
@@ -210,7 +209,6 @@ export default {
 			});
 
 		} catch (error) {
-			console.error('Error fetching repository data:', error);
 
 			return new Response(
 				JSON.stringify({
