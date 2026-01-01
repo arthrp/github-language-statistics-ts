@@ -9,6 +9,7 @@ interface GitHubRepo {
 	stargazers_count: number;
 	// updated_at: string;
 	language: string | null;
+	languages_url: string;
 }
 
 export interface Env {
@@ -37,6 +38,25 @@ async function fetchGitHubRepos(username: string, env: Env): Promise<GitHubRepo[
 
 	const repos: GitHubRepo[] = await response.json();
 	return repos;
+}
+
+async function fetchRepoLanguages(url: string, env: Env): Promise<Record<string, number>> {	
+	const response = await fetch(
+		url,
+		{
+			headers: {
+				'User-Agent': 'gh-lang-stats-ts',
+				'Accept': 'application/vnd.github.v3+json',
+				'Authorization': `Bearer ${env.GH_KEY}`,
+			},
+		}
+	);
+
+	if (!response.ok) {
+		return {};
+	}
+
+	return await response.json();
 }
 
 async function generateSvg(percMap: Map<string, string>, count: number) {
@@ -158,7 +178,7 @@ async function stringToHexColor(str: string) {
 
 export default {
 	async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
-		const url = new URL(request.url);
+		const url = new URL(request.url);	
 
 		const corsHeaders = {
 			'Access-Control-Allow-Origin': '*',
@@ -183,6 +203,19 @@ export default {
 			const username = pathParts[0];
 
 			let repos = (await fetchGitHubRepos(username, env)).filter(r => r.language !== null);
+
+			// If repo language is "HTML", fetch all languages via languages_url, 
+			// take language with 2nd largest number as value and set this as language instead of "HTML".
+			repos = await Promise.all(repos.map(async (r) => {
+				if (r.language === 'HTML') {
+					const languages = await fetchRepoLanguages(r.languages_url, env);
+					const sortedLangs = Object.entries(languages).sort(([, a], [, b]) => b - a);
+					if (sortedLangs.length > 1) {
+						return { ...r, language: sortedLangs[1][0] };
+					}
+				}
+				return r;
+			}));
 
 			const langs = repos.reduce((acc, r) => {
 				acc.set(r.language ?? "", (acc.get(r.language ?? "") ?? 0) + 1);
